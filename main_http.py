@@ -1,6 +1,6 @@
 """
 职途智囊 MCP Server - 超星平台专用版本
-使用 HTTP + JSON 协议
+支持标准 MCP HTTP 协议
 """
 import json
 import re
@@ -10,7 +10,6 @@ from starlette.routing import Route, Mount
 from starlette.responses import JSONResponse
 import uvicorn
 
-# ========== 业务数据 ==========
 RESUME_CRITERIA = {
     "内容完整性": {"weight": 0.25, "items": ["基本信息", "教育背景", "实习/工作经历", "技能", "证书/荣誉"]},
     "量化成果": {"weight": 0.30, "items": ["数字/百分比", "STAR法则", "结果对比"]},
@@ -70,7 +69,6 @@ ROADMAPS = {
     "PLC工程师": {"阶段1_基础": ["电气基础/电路图识读/低压电器"], "阶段2_核心": ["PLC编程(Siemens S7-1200)/梯形图/HMI"], "阶段3_进阶": ["伺服驱动/变频器/工业网络/项目实战"], "资源": "西门子官方文档、工控论坛", "考证": "电工证→PLC应用工程师"}
 }
 
-# ========== 工具实现 ==========
 def score_resume_impl(resume_text: str, target_position: str = "未指定", target_industry: str = "未指定") -> dict:
     if len(resume_text) < 20:
         return {"success": False, "error": "简历内容过短"}
@@ -216,26 +214,38 @@ def plan_roadmap_impl(target_job: str, current_level: str = "入门") -> dict:
         "estimated_time": "6-8个月(入门→可求职)"
     }
 
-# ========== API 端点 ==========
+TOOLS_MAP = {
+    "score_resume": {"name": "score_resume", "description": "五维评分诊断简历", "function": score_resume_impl, "parameters": {"resume_text": {"type": "string", "description": "简历文本内容", "required": True}, "target_position": {"type": "string", "description": "目标岗位", "required": False}, "target_industry": {"type": "string", "description": "目标行业", "required": False}}},
+    "match_career": {"name": "match_career", "description": "根据专业匹配就业方向", "function": match_career_impl, "parameters": {"major": {"type": "string", "description": "专业名称", "required": True}, "skills": {"type": "string", "description": "掌握技能", "required": False}}},
+    "generate_interview_questions": {"name": "generate_interview_questions", "description": "生成模拟面试题目", "function": generate_interview_impl, "parameters": {"position": {"type": "string", "description": "目标岗位", "required": False}, "question_type": {"type": "string", "description": "题目类型(行为面试/技术面试/情景面试/综合)", "required": False}, "count": {"type": "integer", "description": "题目数量", "required": False}}},
+    "generate_radar_chart": {"name": "generate_radar_chart", "description": "根据能力自评生成雷达图数据", "function": generate_radar_impl, "parameters": {"scores_json": {"type": "string", "description": "JSON格式的能力评分", "required": True}}},
+    "query_employment_policy": {"name": "query_employment_policy", "description": "查询就业政策", "function": query_policy_impl, "parameters": {"keyword": {"type": "string", "description": "查询关键词", "required": True}}},
+    "plan_skill_roadmap": {"name": "plan_skill_roadmap", "description": "生成分阶段技能学习路线", "function": plan_roadmap_impl, "parameters": {"target_job": {"type": "string", "description": "目标岗位", "required": True}, "current_level": {"type": "string", "description": "当前水平", "required": False}}}
+}
+
 async def health_check(request):
-    return JSONResponse({
-        "status": "healthy",
-        "service": "职途智囊MCP Server",
-        "version": "1.0.0",
-        "protocol": "http-json"
-    })
+    return JSONResponse({"status": "healthy", "service": "职途智囊MCP Server", "version": "1.0.0", "protocol": "http-json"})
 
 async def list_tools(request):
-    return JSONResponse({
-        "tools": [
-            {"name": "score_resume", "description": "五维评分诊断简历"},
-            {"name": "match_career", "description": "根据专业匹配就业方向"},
-            {"name": "generate_interview_questions", "description": "生成模拟面试题目"},
-            {"name": "generate_radar_chart", "description": "根据能力自评生成雷达图数据"},
-            {"name": "query_employment_policy", "description": "查询就业政策"},
-            {"name": "plan_skill_roadmap", "description": "生成分阶段技能学习路线"}
-        ]
-    })
+    tools = []
+    for name, info in TOOLS_MAP.items():
+        tools.append({"name": info["name"], "description": info["description"], "parameters": info["parameters"]})
+    return JSONResponse({"tools": tools})
+
+async def invoke_tool(request):
+    body = await request.json()
+    tool_name = body.get("name")
+    arguments = body.get("arguments", {})
+    
+    if tool_name not in TOOLS_MAP:
+        return JSONResponse({"error": f"工具不存在: {tool_name}"}, status_code=404)
+    
+    tool_info = TOOLS_MAP[tool_name]
+    try:
+        result = tool_info["function"](**arguments)
+        return JSONResponse({"name": tool_name, "result": result})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 async def score_resume(request):
     body = await request.json()
@@ -267,12 +277,14 @@ async def plan_roadmap(request):
     result = plan_roadmap_impl(**body)
     return JSONResponse(result)
 
-# ========== 创建应用 ==========
 app = Starlette(
     debug=True,
     routes=[
         Route("/health", health_check),
         Route("/tools", list_tools),
+        Route("/list_tools", list_tools),
+        Route("/invoke", invoke_tool, methods=["POST"]),
+        Route("/api/invoke", invoke_tool, methods=["POST"]),
         Route("/api/score_resume", score_resume, methods=["POST"]),
         Route("/api/match_career", match_career, methods=["POST"]),
         Route("/api/generate_interview", generate_interview, methods=["POST"]),
@@ -282,22 +294,7 @@ app = Starlette(
     ]
 )
 
-# ========== 启动 ==========
 if __name__ == "__main__":
-    print("=" * 60)
-    print("职途智囊 MCP Server v1.0")
-    print("专为超星平台设计 - HTTP JSON 协议")
-    print("=" * 60)
+    print("职途智囊 MCP Server v1.0 - 超星平台专用")
     print("服务地址: http://localhost:8080")
-    print("协议类型: HTTP + JSON")
-    print("=" * 60)
-    print("可用工具:")
-    print("  1. score_resume - 简历五维评分诊断")
-    print("  2. match_career - 专业就业方向匹配")
-    print("  3. generate_interview_questions - 模拟面试题生成")
-    print("  4. generate_radar_chart - 能力雷达图数据生成")
-    print("  5. query_employment_policy - 就业政策查询")
-    print("  6. plan_skill_roadmap - 技能学习路线规划")
-    print("=" * 60)
-    
     uvicorn.run(app, host="0.0.0.0", port=8080)
