@@ -1,6 +1,6 @@
 """
 职途智囊 MCP Server - 超星平台专用版本
-支持标准 MCP HTTP 协议
+使用 HTTP + JSON 协议
 """
 import json
 import re
@@ -216,64 +216,6 @@ def plan_roadmap_impl(target_job: str, current_level: str = "入门") -> dict:
         "estimated_time": "6-8个月(入门→可求职)"
     }
 
-# ========== 工具注册 ==========
-TOOLS_MAP = {
-    "score_resume": {
-        "name": "score_resume",
-        "description": "五维评分诊断简历",
-        "function": score_resume_impl,
-        "parameters": {
-            "resume_text": {"type": "string", "description": "简历文本内容", "required": True},
-            "target_position": {"type": "string", "description": "目标岗位", "required": False},
-            "target_industry": {"type": "string", "description": "目标行业", "required": False}
-        }
-    },
-    "match_career": {
-        "name": "match_career",
-        "description": "根据专业匹配就业方向",
-        "function": match_career_impl,
-        "parameters": {
-            "major": {"type": "string", "description": "专业名称", "required": True},
-            "skills": {"type": "string", "description": "掌握技能", "required": False}
-        }
-    },
-    "generate_interview_questions": {
-        "name": "generate_interview_questions",
-        "description": "生成模拟面试题目",
-        "function": generate_interview_impl,
-        "parameters": {
-            "position": {"type": "string", "description": "目标岗位", "required": False},
-            "question_type": {"type": "string", "description": "题目类型(行为面试/技术面试/情景面试/综合)", "required": False},
-            "count": {"type": "integer", "description": "题目数量", "required": False}
-        }
-    },
-    "generate_radar_chart": {
-        "name": "generate_radar_chart",
-        "description": "根据能力自评生成雷达图数据",
-        "function": generate_radar_impl,
-        "parameters": {
-            "scores_json": {"type": "string", "description": "JSON格式的能力评分", "required": True}
-        }
-    },
-    "query_employment_policy": {
-        "name": "query_employment_policy",
-        "description": "查询就业政策",
-        "function": query_policy_impl,
-        "parameters": {
-            "keyword": {"type": "string", "description": "查询关键词", "required": True}
-        }
-    },
-    "plan_skill_roadmap": {
-        "name": "plan_skill_roadmap",
-        "description": "生成分阶段技能学习路线",
-        "function": plan_roadmap_impl,
-        "parameters": {
-            "target_job": {"type": "string", "description": "目标岗位", "required": True},
-            "current_level": {"type": "string", "description": "当前水平", "required": False}
-        }
-    }
-}
-
 # ========== API 端点 ==========
 async def health_check(request):
     return JSONResponse({
@@ -284,32 +226,16 @@ async def health_check(request):
     })
 
 async def list_tools(request):
-    tools = []
-    for name, info in TOOLS_MAP.items():
-        tools.append({
-            "name": info["name"],
-            "description": info["description"],
-            "parameters": info["parameters"]
-        })
-    return JSONResponse({"tools": tools})
-
-async def invoke_tool(request):
-    body = await request.json()
-    tool_name = body.get("name")
-    arguments = body.get("arguments", {})
-    
-    if tool_name not in TOOLS_MAP:
-        return JSONResponse({"error": f"工具不存在: {tool_name}"}, status_code=404)
-    
-    tool_info = TOOLS_MAP[tool_name]
-    try:
-        result = tool_info["function"](**arguments)
-        return JSONResponse({
-            "name": tool_name,
-            "result": result
-        })
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+    return JSONResponse({
+        "tools": [
+            {"name": "score_resume", "description": "五维评分诊断简历"},
+            {"name": "match_career", "description": "根据专业匹配就业方向"},
+            {"name": "generate_interview_questions", "description": "生成模拟面试题目"},
+            {"name": "generate_radar_chart", "description": "根据能力自评生成雷达图数据"},
+            {"name": "query_employment_policy", "description": "查询就业政策"},
+            {"name": "plan_skill_roadmap", "description": "生成分阶段技能学习路线"}
+        ]
+    })
 
 async def score_resume(request):
     body = await request.json()
@@ -347,9 +273,6 @@ app = Starlette(
     routes=[
         Route("/health", health_check),
         Route("/tools", list_tools),
-        Route("/list_tools", list_tools),
-        Route("/invoke", invoke_tool, methods=["POST"]),
-        Route("/api/invoke", invoke_tool, methods=["POST"]),
         Route("/api/score_resume", score_resume, methods=["POST"]),
         Route("/api/match_career", match_career, methods=["POST"]),
         Route("/api/generate_interview", generate_interview, methods=["POST"]),
@@ -369,8 +292,12 @@ if __name__ == "__main__":
     print("协议类型: HTTP + JSON")
     print("=" * 60)
     print("可用工具:")
-    for i, (name, info) in enumerate(TOOLS_MAP.items(), 1):
-        print(f"  {i}. {name} - {info['description']}")
+    print("  1. score_resume - 简历五维评分诊断")
+    print("  2. match_career - 专业就业方向匹配")
+    print("  3. generate_interview_questions - 模拟面试题生成")
+    print("  4. generate_radar_chart - 能力雷达图数据生成")
+    print("  5. query_employment_policy - 就业政策查询")
+    print("  6. plan_skill_roadmap - 技能学习路线规划")
     print("=" * 60)
     
     uvicorn.run(app, host="0.0.0.0", port=8080)
