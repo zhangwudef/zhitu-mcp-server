@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "职途智囊MCP": {
+      "url": "http://10.101.68.129:8080",
+      "transport": "streamableHttp",
+      "description": "专为顺职大学生设计的职业成长伙伴MCP服务",
+      "health_check": "/health",
+      "tools_endpoint": "/tools",
+      "api_endpoints": {
+        "score_resume": "POST /api/score_resume",
+        "match_career": "POST /api/match_career",
+        "generate_interview": "POST /api/generate_interview",
+        "generate_radar": "POST /api/generate_radar",
+        "query_policy": "POST /api/query_policy",
+        "plan_roadmap": "POST /api/plan_roadmap"
+      },
+      "tools": [
+        {"name": "score_resume", "description": "五维评分诊断简历"},
+        {"name": "match_career", "description": "根据专业匹配就业方向"},
+        {"name": "generate_interview_questions", "description": "生成模拟面试题目"},
+        {"name": "generate_radar_chart", "description": "根据能力自评生成雷达图数据"},
+        {"name": "query_employment_policy", "description": "查询就业政策"},
+        {"name": "plan_skill_roadmap", "description": "生成分阶段技能学习路线"}
+      ]
+    }
+  }
+}
